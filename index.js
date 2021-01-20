@@ -13,7 +13,7 @@ dotenv.config();
 
 const mongoClient = mongodb.MongoClient;
 const objectId = mongodb.ObjectID;
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5500;
 const dbUrl = process.env.DB_URL || "mongodb://127.0.0.1:27017";
 const saltRounds = 10;
 
@@ -260,13 +260,13 @@ app.put("/assign-password", async (req, res) => {
   }
 });
 
-app.post('/is-session-active', tokenValidation, async (req, res) => {
+app.post('/active-session', tokenValidation, async (req, res) => {
     try {
         let client = await mongoClient.connect(dbUrl);
         let db = client.db('equirent');
         let result = await db.collection('users').findOne({_id: objectId(req.body.id)})
         if (result){
-            res.status(200).json({message: 'session is active now!'});
+            res.status(200).json({message: 'session is active now!', result});
         }else{
             res.status(403).json({message: 'user not found or session token invalid'})
         }
@@ -343,7 +343,6 @@ app.post('/add-product', [tokenValidation, checkRole('ADMIN')], async (req, res)
     try {
         let client = await mongoClient.connect(dbUrl)
         let db = client.db('equirent')
-        console.log("hi")
         let result = await db.collection('products').insertOne(req.body.product)
         res.status(200).json({message: 'product added successfully'})
         client.close();
@@ -353,11 +352,29 @@ app.post('/add-product', [tokenValidation, checkRole('ADMIN')], async (req, res)
     }
 })
 
+app.post('/products', async (req, res) => {
+  try {
+    let client = await mongoClient.connect(dbUrl)
+    let db = client.db('equirent')
+    let result;
+    if (req.body.filter === 'all'){
+      result = await db.collection('products').find().toArray();
+    }else{
+      result = await db.collection('products').find({category: req.body.filter}).toArray();
+    }
+    res.status(200).json({message: 'products fetched successfully', result})
+    client.close();
+  } catch (error) {
+    console.log(error);
+    res.sendStatus(500)
+  }
+})
+
 app.post('/user-products', tokenValidation, async (req, res) => {
     try {
         let client = await mongoClient.connect(dbUrl)
         let db = client.db('equirent')
-        let result = await db.collection('products').find().toArray();
+        let result = await db.collection('users').findOne({_id: objectId(req.body.id)}, {projection: {cart: 1}});
         res.status(200).json({message: 'products fetched successfully', role: req.role, result})
         client.close();
     } catch (error) {
